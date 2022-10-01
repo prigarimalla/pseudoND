@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>File System Examples</title>
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+    <style>
+    img {width: 1000px;}
+    </style>
+    <py-config type="json">
+      {
+        "autoclose_loader": true,
+        "runtimes": [{
+          "src": "https://cdn.jsdelivr.net/pyodide/v0.21.3/full/pyodide.js",
+          "name": "pyodide-0.21.3",
+          "lang": "python"
+          }],
+        "packages": ["opencv-python"]
+      }
+    </py-config>
+  </head>
+  <body>
+    <p>
+      This example shows how to process a input file event, use opencv to
+      convert to grayscale, and display the content as an image.
+    </p>
+    <br />
+    <label for="myfiles">Select image(s)</label>
+    <input type="file" id="myfiles" name="myfiles" multiple>
+
+    <br />
+    <br />
+    <p>Images:</p>
+    <div id="images">
+    </div>
+
+    <py-script>
+import asyncio
+import js
+from js import document
+from pyodide.ffi import create_proxy
+import cv2
+import numpy as np
+import base64
+
+def readb64(uri):
+   encoded_data = uri.split(',')[1]
+   nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
+   img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+   return img
+
+def bytes_to_data_url(img_bytes):
+    _, buffer = cv2.imencode(".jpg", img_bytes)
+    b64_encoded = base64.b64encode(buffer).decode("ascii")
+    return f'data:image/jpg;base64,{b64_encoded}'
+
+def read_complete(event):
+  color_img = readb64(event.target.result)
+  gray_img = cv2.cvtColor(color_img, cv2.COLOR_BGR2GRAY)
+  gray_data_url = bytes_to_data_url(gray_img)
+
+  images = document.getElementById("images")
+
+  name = document.createElement("div")
+  name.innerHTML = event.target.fileName
+  images.appendChild(name)
+
+  img = document.createElement("img")
+  img.src = gray_data_url
+  images.appendChild(img)
+
+  
+async def process_file(x):
+  fileList = document.getElementById('myfiles').files
+
+  for f in fileList:
+    # reader is a pyodide.JsProxy
+    reader = js.FileReader.new()
+    reader.fileName = f.name
+
+    # Create a Python proxy for the callback function
+    onload_event = create_proxy(read_complete)
+    reader.onload = onload_event
+    reader.readAsDataURL(f)
+
+  return
+
+def setup():
+  # Create a Python proxy for the callback function
+  file_event = create_proxy(process_file)
+
+  # Set the listener to the callback
+  e = document.getElementById("myfiles")
+  e.addEventListener("change", file_event)
+
+setup()
+    </py-script>
+  </body>
+</html>
