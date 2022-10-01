@@ -36,13 +36,13 @@
     <p>Images:</p>
     <img id="status" src="loading.gif" style="width:64px; visibility:hidden">
     <div id="imageCount"></div>
-    <div id="images"></div>
+    <p id="log_header" style="visibility:hidden">Log Output:</p>
+    <div id="logs"></div>
     <div id="finalImageText" style="visibility:hidden">
       Final Image (right-click to save)
     </div>
     <img id="finalImage">
-    <p id="log_header" style="visibility:hidden">Log Output:</p>
-    <div id="logs"></div>
+
 
     <py-script>
 import asyncio
@@ -60,15 +60,17 @@ import logging
 log_stream = StringIO()
 logging.basicConfig(stream=log_stream, level=logging.INFO)
 
+def updateLogs():
+  logs = document.getElementById("logs")
+  logs.innerHTML = log_stream.getvalue().replace('\n', ' <br> ')
+
 async def read_complete(event):
   load_and_stack_from_data_url_event(event.target.result, event.target.fileName)
   event.target.counter.incrementAndUpdateElem()
 
   images = document.getElementById("images")
 
-  name = document.createElement("div")
-  name.innerHTML = event.target.fileName + ' DONE'
-  images.appendChild(name)
+  updateLogs()
 
   if event.target.counter.isComplete():
     await displayResult()
@@ -84,12 +86,10 @@ async def displayResult():
   img.src = res
   img.style.width = "1000px"
 
-  document.getElementById("log_header").style.visibility = "visible"
-  logs = document.getElementById("logs")
-  logs.innerHTML = log_stream.getvalue().replace('\n', ' <br> ')
-
   refresh_msg = "Refresh page to start another run."
   document.getElementById("select_message").innerHTML = refresh_msg
+
+  updateLogs()
 
 class FileCounter():
   def __init__(self, total, elem):
@@ -121,6 +121,8 @@ async def process_file(x):
   counter.updateElem()
 
   document.getElementById('status').style.visibility = "visible"
+  document.getElementById("log_header").style.visibility = "visible"
+
 
   for f in fileList:
     reader = js.FileReader.new()
