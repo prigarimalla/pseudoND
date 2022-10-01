@@ -4,12 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>File System Examples</title>
+    <title>PseudoND</title>
     <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
     <script defer src="https://pyscript.net/latest/pyscript.js"></script>
-    <style>
-    img {width: 1000px;}
-    </style>
     <py-config type="json">
       {
         "autoclose_loader": true,
@@ -26,21 +23,26 @@
   </head>
   <body>
     <p id="heading">
-      This example shows how to process a input file event, use opencv to
-      convert to grayscale, and display the content as an image.
+      PseudoND: Takes multiple rapid exposures, aligns them, and stacks them.
+      <br>
+      Built using pyscript (python in the browser with pyodide and WebAssembly).
     </p>
     <br />
-    <label for="myfiles">Select image(s)</label>
-    <input type="file" id="myfiles" name="myfiles" multiple>
+    <label id="select_message" for="myfiles">Select image(s)</label>
+    <input type="file" id="myfiles" name="myfiles" style="visibility:visible" multiple>
 
     <br />
     <br />
     <p>Images:</p>
+    <img id="status" src="loading.gif" style="width:64px; visibility:hidden">
     <div id="imageCount"></div>
-    <div id="finalImage"></div>
     <div id="images"></div>
-
-
+    <div id="finalImageText" style="visibility:hidden">
+      Final Image (right-click to save)
+    </div>
+    <img id="finalImage">
+    <p id="log_header" style="visibility:hidden">Log Output:</p>
+    <div id="logs"></div>
 
     <py-script>
 import asyncio
@@ -51,19 +53,14 @@ import cv2
 import numpy as np
 import base64
 from DataUrlLoader import load_and_stack_from_data_url_event, get_final_image
+from io import StringIO
+import logging
 
-def readb64(uri):
-   encoded_data = uri.split(',')[1]
-   nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
-   img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-   return img
+# Redirect logging output to variable to display in browser
+log_stream = StringIO()
+logging.basicConfig(stream=log_stream, level=logging.INFO)
 
-def bytes_to_data_url(img_bytes):
-    _, buffer = cv2.imencode(".jpg", img_bytes)
-    b64_encoded = base64.b64encode(buffer).decode("ascii")
-    return f'data:image/jpg;base64,{b64_encoded}'
-
-def read_complete(event):
+async def read_complete(event):
   load_and_stack_from_data_url_event(event.target.result, event.target.fileName)
   event.target.counter.incrementAndUpdateElem()
 
@@ -74,20 +71,25 @@ def read_complete(event):
   images.appendChild(name)
 
   if event.target.counter.isComplete():
-    finalElem = document.getElementById("finalImage")
-    loadingMsg = "Preparing Final Stacked Image..."
-    finalElem.innerHTML = loadingMsg
+    await displayResult()
 
-    res = get_final_image()
+async def displayResult():
+  res = get_final_image()
 
-    completeMsg = "Final Image (right-click to save)"
-    finalElem.innerHTML = completeMsg
+  document.getElementById('finalImageText').style.visibility = "visible"
+  document.getElementById('myfiles').style.visibility = "hidden"
 
-    img = document.createElement("img")
-    img.src = res
-    finalElem.appendChild(img)
+  document.getElementById('status').src = "green_check.png"
+  img = document.getElementById('finalImage')
+  img.src = res
+  img.style.width = "1000px"
 
+  document.getElementById("log_header").style.visibility = "visible"
+  logs = document.getElementById("logs")
+  logs.innerHTML = log_stream.getvalue().replace('\n', ' <br> ')
 
+  refresh_msg = "Refresh page to start another run."
+  document.getElementById("select_message").innerHTML = refresh_msg
 
 class FileCounter():
   def __init__(self, total, elem):
@@ -117,6 +119,8 @@ async def process_file(x):
   imageCount = document.getElementById('imageCount')
   counter = FileCounter(len(fileList), imageCount)
   counter.updateElem()
+
+  document.getElementById('status').style.visibility = "visible"
 
   for f in fileList:
     reader = js.FileReader.new()
